@@ -1,8 +1,8 @@
 package com.example.data
 
-import android.util.Log
 import com.example.R
 import com.example.model.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -10,97 +10,34 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class TrustNetRepository(
     val neonClient: NeonDatabaseClient = NeonDatabaseClient(),
     val aiService: GeminiAiService = GeminiAiService()
 ) {
-    companion object {
-        private const val TAG = "TrustNetRepository"
-    }
-
     private val scope = CoroutineScope(Dispatchers.Default)
 
     // User Profile & Authentication State
-    private val _currentUser = MutableStateFlow(
-        UserProfile(
-            id = "usr-01",
-            name = "Amelia Andra",
-            email = "amelia.andra@trustnet.org",
-            avatarRes = R.drawable.img_profile_avatar_1794230085674,
-            isLoggedIn = true,
-            safetyRank = "Hiệp sĩ An toàn",
-            levelScore = 1820,
-            totalScans = 18,
-            protectedHours = 240
-        )
-    )
+    private val guest = UserProfile(id = "", name = "Khách vãng lai", email = "", isLoggedIn = false,
+        totalScans = 0, levelScore = 0, protectedHours = 0)
+    private val _currentUser = MutableStateFlow(guest)
     val currentUser: StateFlow<UserProfile> = _currentUser.asStateFlow()
 
-    private val _syncStatus = MutableStateFlow(SyncStatus.SYNCED)
+    private val _syncStatus = MutableStateFlow(SyncStatus.OFFLINE)
     val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
 
-    private val _lastSyncTimestamp = MutableStateFlow(System.currentTimeMillis())
+    private val _lastSyncTimestamp = MutableStateFlow(0L)
     val lastSyncTimestamp: StateFlow<Long> = _lastSyncTimestamp.asStateFlow()
 
     private val _realtimeSyncEnabled = MutableStateFlow(true)
     val realtimeSyncEnabled: StateFlow<Boolean> = _realtimeSyncEnabled.asStateFlow()
 
-    // Scan history state (loaded from Neon PostgreSQL with seed fallback)
-    private val _scanHistory = MutableStateFlow<List<ScanResult>>(
-        listOf(
-            ScanResult(
-                id = "scan-1",
-                target = "https://vneid-xacthuc-taikhoan.vn/login.php?ref=otp",
-                type = QueryType.URL,
-                riskScore = 92,
-                riskLevel = RiskLevel.HIGH_RISK,
-                redFlags = listOf(
-                    "Tên miền giả mạo Cổng Dịch vụ công VNeID",
-                    "Yêu cầu cung cấp mã OTP và mật khẩu",
-                    "Cấu trúc URL bất thường / Tên miền trôi nổi"
-                ),
-                recommendations = listOf(
-                    "Không nhấp vào link, tuyệt đối không cung cấp thông tin cá nhân!",
-                    "Chặn và báo cáo số điện thoại / nguồn gửi tin nhắn.",
-                    "Liên hệ tổng đài VNeID chính thức 1900 0368 để kiểm tra nếu nghi ngờ."
-                ),
-                redFlagPoints = listOf(
-                    RedFlagPoint("Tên miền giả mạo thương hiệu/dịch vụ công (vneid-xacthuc-taikhoan.vn)", 35),
-                    RedFlagPoint("Yêu cầu nhập mã OTP hoặc dữ liệu tài khoản nhạy cảm", 30),
-                    RedFlagPoint("Cấu trúc URL bất thường, sử dụng tên miền trôi nổi", 27)
-                ),
-                analyzedDomain = "vneid-xacthuc-taikhoan.vn",
-                isDomainValid = false,
-                timestamp = System.currentTimeMillis() - 15 * 60 * 1000
-            )
-        )
-    )
+    private val _scanHistory = MutableStateFlow<List<ScanResult>>(emptyList())
     val scanHistory: StateFlow<List<ScanResult>> = _scanHistory.asStateFlow()
 
-    // Real-time alerts feed (loaded from Neon PostgreSQL with seed fallback)
-    private val _alerts = MutableStateFlow<List<SecurityAlert>>(
-        listOf(
-            SecurityAlert(
-                id = "alert-1",
-                title = "Cảnh giác với lừa đảo học bổng trực tuyến!",
-                summary = "Các đối tượng tạo fanpage mạo danh học bổng quốc tế, yêu cầu nộp lệ phí cam kết.",
-                tag = "Khẩn cấp",
-                timeAgo = "5 phút trước",
-                isUrgent = true,
-                isRead = false
-            ),
-            SecurityAlert(
-                id = "alert-2",
-                title = "Cảnh báo Deepfake gọi video lừa chuyển tiền",
-                summary = "Thủ đoạn giả mạo khuôn mặt bạn bè, người thân qua video call kém chất lượng để mượn tiền gấp.",
-                tag = "Deepfake AI",
-                timeAgo = "32 phút trước",
-                isUrgent = true,
-                isRead = false
-            )
-        )
-    )
+    private val _alerts = MutableStateFlow<List<SecurityAlert>>(emptyList())
     val alerts: StateFlow<List<SecurityAlert>> = _alerts.asStateFlow()
 
     // Privacy checklist items
@@ -147,10 +84,10 @@ class TrustNetRepository(
             tips = listOf(
                 "Kiểm tra nhanh mọi đường link hoặc tin nhắn lạ bằng TrustCheck trước khi nhấp vào.",
                 "Rà soát quyền ứng dụng định kỳ trong TrustPrivacy để không bị nghe lén.",
-                "Khi gặp khó khăn tâm lý hoặc bị đe dọa, kết nối ngay với chuyên gia TrustCare qua hotline 1800 96 96 12."
+                "Khi bị đe dọa, hãy tìm một người lớn đáng tin cậy hoặc gọi 111 để được hỗ trợ."
             ),
             quickActionTitle = "Khởi chạy quét bảo mật nhanh",
-            hotline = "1800 96 96 12"
+            hotline = "111"
         ),
         Screen.TRUST_CHECK to HelpGuide(
             title = "Hướng dẫn Kiểm tra An toàn Số",
@@ -162,7 +99,7 @@ class TrustNetRepository(
                 "Điểm rủi ro từ 70/100 trở lên là mức báo động đỏ, bạn cần chặn nguồn gửi ngay lập tức."
             ),
             quickActionTitle = "Báo cáo đường dẫn độc hại",
-            hotline = "1800 96 96 12"
+            hotline = "111"
         ),
         Screen.TRUST_PRIVACY to HelpGuide(
             title = "Hướng dẫn Bảo vệ Quyền Riêng Tư",
@@ -182,10 +119,10 @@ class TrustNetRepository(
             tips = listOf(
                 "Chụp lại toàn bộ màn hình làm bằng chứng (kèm ngày giờ và link trang cá nhân kẻ xấu).",
                 "Tuyệt đối không chuyển tiền theo yêu cầu tống tiền của kẻ gian.",
-                "Liên hệ ngay Tổng đài Quốc gia Bảo vệ Trẻ em 111 hoặc TrustCare 1800 96 96 12."
+                "Liên hệ Tổng đài Quốc gia Bảo vệ Trẻ em 111."
             ),
             quickActionTitle = "Gọi tổng đài tư vấn khẩn cấp",
-            hotline = "1800 96 96 12"
+            hotline = "111"
         ),
         Screen.TRUST_AI to HelpGuide(
             title = "Hướng dẫn Nhận diện Deepfake & AI",
@@ -216,7 +153,7 @@ class TrustNetRepository(
                 "Cục An toàn thông tin (A05): Tiếp nhận tố giác tội phạm lừa đảo công nghệ cao.",
                 "Đội phản ứng nhanh TrustNet: Hỗ trợ gỡ bỏ nội dung bôi nhọ và tư vấn tâm lý."
             ),
-            hotline = "1800 96 96 12"
+            hotline = "111"
         ),
         Screen.TRUST_MEDIA to HelpGuide(
             title = "Cổng Thông Tin An Toàn Số",
@@ -281,7 +218,7 @@ class TrustNetRepository(
                 "Đặt điện thoại sang một bên, tạm ngắt kết nối mạng xã hội trong 24 giờ (Digital Detox).",
                 "Thực hiện bài tập hít thở sâu 4-7-8 giúp xoa dịu hệ thần kinh.",
                 "Trò chuyện cởi mở với bạn bè thân thiết ngoài đời thực.",
-                "Kết nối với chuyên gia tâm lý học đường qua đường dây nóng miễn phí TrustCare 1800 96 96 12."
+                "Trao đổi với người thân hoặc chuyên viên tư vấn học đường."
             ),
             emergencyNote = "Đội ngũ chuyên viên tâm lý TrustNet sẵn sàng lắng nghe bạn 24/7 một cách bảo mật tuyệt đối."
         )
@@ -402,69 +339,49 @@ class TrustNetRepository(
         )
     )
 
+    private val accountMutex = Mutex()
+
     init {
         scope.launch {
-            loadFromNeon()
-            startRealtimeSyncLoop()
-        }
-    }
-
-    private suspend fun loadFromNeon() {
-        try {
-            val dbScans = neonClient.getScanHistory()
-            if (dbScans.isNotEmpty()) {
-                _scanHistory.value = dbScans
-            }
-
-            val dbAlerts = neonClient.getSecurityAlerts()
-            if (dbAlerts.isNotEmpty()) {
-                _alerts.value = dbAlerts
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load initial data from Neon: ${e.message}")
-        }
-    }
-
-    private fun startRealtimeSyncLoop() {
-        scope.launch {
+            triggerManualSync()
             while (true) {
                 delay(25_000)
                 if (_realtimeSyncEnabled.value) {
-                    try {
-                        val freshAlerts = neonClient.getSecurityAlerts()
-                        if (freshAlerts.isNotEmpty()) {
-                            _alerts.value = freshAlerts
-                        }
-                        _lastSyncTimestamp.value = System.currentTimeMillis()
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Realtime sync loop exception: ${e.message}")
+                    accountMutex.withLock {
+                        if (!attempt { refreshAlerts() }) _syncStatus.value = SyncStatus.OFFLINE
                     }
                 }
             }
         }
     }
 
-    suspend fun triggerManualSync(): Boolean {
+    private suspend fun refreshAlerts() {
+        val readIds = _alerts.value.filter { it.isRead }.map { it.id }.toSet()
+        _alerts.value = neonClient.getSecurityAlerts().map { it.copy(isRead = it.id in readIds) }
+    }
+
+    private suspend fun attempt(action: suspend () -> Unit): Boolean = try {
+        action()
+        true
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        false
+    }
+
+    suspend fun triggerManualSync(): Boolean = accountMutex.withLock {
         _syncStatus.value = SyncStatus.SYNCING
-        try {
-            val freshScans = neonClient.getScanHistory()
-            if (freshScans.isNotEmpty()) _scanHistory.value = freshScans
-
-            val freshAlerts = neonClient.getSecurityAlerts()
-            if (freshAlerts.isNotEmpty()) _alerts.value = freshAlerts
-
+        val ok = attempt {
+            refreshAlerts()
+            if (_currentUser.value.isLoggedIn) _scanHistory.value = neonClient.getScanHistory()
             _lastSyncTimestamp.value = System.currentTimeMillis()
-            _syncStatus.value = SyncStatus.SYNCED
-            return true
-        } catch (e: Exception) {
-            _syncStatus.value = SyncStatus.OFFLINE
-            return false
         }
+        _syncStatus.value = if (ok) SyncStatus.SYNCED else SyncStatus.OFFLINE
+        ok
     }
 
     fun toggleRealtimeSync(enabled: Boolean) {
         _realtimeSyncEnabled.value = enabled
-        _syncStatus.value = if (enabled) SyncStatus.SYNCED else SyncStatus.OFFLINE
     }
 
     fun togglePrivacyAuditItem(id: String) {
@@ -473,128 +390,61 @@ class TrustNetRepository(
         }
     }
 
-    suspend fun login(email: String, password: String):Boolean {
-        return try {
-            val user = neonClient.authenticateUser(email, password)
-            if (user != null) {
-                _currentUser.value = user.copy(avatarRes = R.drawable.img_profile_avatar_1794230085674)
-                true
-            } else {
-                // Fallback login for seamless offline/first demo
-                _currentUser.value = UserProfile(
-                    name = email.substringBefore("@").replace(".", " ").capitalizeWords(),
-                    email = email,
-                    avatarRes = R.drawable.img_profile_avatar_1794230085674,
-                    isLoggedIn = true
-                )
-                true
+    suspend fun login(email: String, password: String): Boolean = authenticate(email, password)
+
+    suspend fun register(name: String, email: String, password: String): Boolean =
+        authenticate(email, password, name)
+
+    private suspend fun authenticate(email: String, password: String, name: String? = null): Boolean =
+        accountMutex.withLock {
+            val ok = attempt {
+                _currentUser.value = neonClient.authenticate(email, password, name)
+                _scanHistory.value = emptyList()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Login exception: ${e.message}")
-            false
-        }
-    }
-
-    suspend fun register(name: String, email: String, password: String): Boolean {
-        return try {
-            val user = neonClient.registerUser(name, email, password)
-            if (user != null) {
-                _currentUser.value = user.copy(avatarRes = R.drawable.img_profile_avatar_1794230085674)
-                true
-            } else {
-                _currentUser.value = UserProfile(
-                    name = name,
-                    email = email,
-                    avatarRes = R.drawable.img_profile_avatar_1794230085674,
-                    isLoggedIn = true
-                )
-                true
+            if (ok) {
+                val loaded = attempt { _scanHistory.value = neonClient.getScanHistory() }
+                if (!loaded) _syncStatus.value = SyncStatus.OFFLINE
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Register exception: ${e.message}")
-            false
-        }
-    }
-
-    fun loginWithGoogle(): Boolean {
-        _currentUser.value = UserProfile(
-            name = "Amelia Andra",
-            email = "amelia.andra@gmail.com",
-            avatarRes = R.drawable.img_profile_avatar_1794230085674,
-            isLoggedIn = true
-        )
-        return true
-    }
-
-    fun logout() {
-        _currentUser.value = UserProfile(
-            name = "Khách vãng lai",
-            email = "chua-dang-nhap@trustnet.org",
-            avatarRes = null,
-            isLoggedIn = false,
-            totalScans = 0,
-            levelScore = 0
-        )
-    }
-
-    suspend fun analyzeTarget(query: String, type: QueryType): ScanResult {
-        val result = aiService.analyzeContentWithGemini(query, type)
-
-        _scanHistory.value = listOf(result) + _scanHistory.value
-
-        // Increment scan count in profile
-        _currentUser.value = _currentUser.value.copy(
-            totalScans = _currentUser.value.totalScans + 1,
-            levelScore = _currentUser.value.levelScore + 10
-        )
-
-        scope.launch {
-            try {
-                neonClient.insertScanResult(result)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to persist scan to Neon: ${e.message}")
-            }
+            ok
         }
 
+    suspend fun logout() = accountMutex.withLock {
+        attempt { neonClient.logout() }
+        _currentUser.value = guest
+        _scanHistory.value = emptyList()
+    }
+
+    suspend fun analyzeTarget(query: String, type: QueryType, attachment: MediaInput? = null): ScanResult {
+        val owner = _currentUser.value.id
+        val result = aiService.analyzeContentWithGemini(query, type, attachment)
+        accountMutex.withLock {
+            if (_currentUser.value.id == owner) {
+                _scanHistory.value = listOf(result) + _scanHistory.value
+                if (_currentUser.value.isLoggedIn && !attempt { neonClient.insertScanResult(result) }) {
+                    _syncStatus.value = SyncStatus.OFFLINE
+                }
+            }
+        }
         return result
     }
 
-    suspend fun getCareAdvice(situation: String): CareAiAdvice {
-        return aiService.getCareGuidance(situation)
-    }
+    suspend fun getCareAdvice(situation: String): CareAiAdvice = aiService.getCareGuidance(situation)
 
-    suspend fun analyzeDeepfake(
-        fileName: String,
-        isSimulatedFake: Boolean = false,
-        customApiUrl: String = ""
-    ): DeepfakeAnalysisResult {
-        return aiService.detectAiMedia(fileName, isSimulatedFake, customApiUrl)
-    }
+    suspend fun analyzeDeepfake(media: MediaInput): DeepfakeAnalysisResult = aiService.detectAiMedia(media)
 
-    suspend fun submitIncidentReport(target: String, details: String): Boolean {
-        return neonClient.insertIncidentReport(target, details)
-    }
+    suspend fun submitIncidentReport(target: String, details: String): Boolean =
+        accountMutex.withLock { attempt { neonClient.insertIncidentReport(target, details) } }
 
-    suspend fun submitVolunteerRegistration(name: String, school: String, phone: String): Boolean {
-        return neonClient.registerVolunteer(name, school, phone)
-    }
+    suspend fun submitVolunteerRegistration(name: String, school: String, phone: String): Boolean =
+        accountMutex.withLock { attempt { neonClient.registerVolunteer(name, school, phone) } }
 
     fun markAlertAsRead(id: String) {
-        _alerts.value = _alerts.value.map {
-            if (it.id == id) it.copy(isRead = true) else it
-        }
+        _alerts.value = _alerts.value.map { if (it.id == id) it.copy(isRead = true) else it }
     }
 
-    fun clearHistory() {
-        _scanHistory.value = emptyList()
-        scope.launch {
-            try {
-                neonClient.clearHistory()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clear Neon history: ${e.message}")
-            }
-        }
+    suspend fun clearHistory(): Boolean = accountMutex.withLock {
+        val ok = !_currentUser.value.isLoggedIn || attempt { neonClient.clearHistory() }
+        if (ok) _scanHistory.value = emptyList()
+        ok
     }
-
-    private fun String.capitalizeWords(): String = split(" ").joinToString(" ") { it.replaceFirstChar { char -> char.uppercase() } }
 }

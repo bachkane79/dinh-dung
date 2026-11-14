@@ -43,11 +43,11 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedFilter by remember { mutableStateOf("Tất cả") }
-    val filters = listOf("Tất cả", "Rủi ro cao", "An toàn")
+    val filters = listOf("Tất cả", "Rủi ro cao", "Chưa xác minh")
 
     val filteredList = when (selectedFilter) {
         "Rủi ro cao" -> scanHistory.filter { it.riskLevel == RiskLevel.HIGH_RISK }
-        "An toàn" -> scanHistory.filter { it.riskLevel == RiskLevel.SAFE }
+        "Chưa xác minh" -> scanHistory.filter { it.riskLevel in setOf(RiskLevel.UNKNOWN, RiskLevel.SAFE) }
         else -> scanHistory
     }
 
@@ -186,7 +186,8 @@ fun HistoryScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "$formattedDate • Điểm rủi ro: ${scan.riskScore}/100",
+                                text = if (scan.riskLevel in setOf(RiskLevel.UNKNOWN, RiskLevel.SAFE)) "$formattedDate • Chưa xác minh"
+                                    else "$formattedDate • Điểm rủi ro: ${scan.riskScore}/100",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

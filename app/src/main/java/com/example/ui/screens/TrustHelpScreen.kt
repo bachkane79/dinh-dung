@@ -37,13 +37,12 @@ fun TrustHelpScreen(
         "Bị lừa đảo qua mạng" to "Thu thập sao kê giao dịch, ảnh chụp màn hình kẻ gian và báo ngay cho công an xã/phường.",
         "Bị xâm phạm tài khoản" to "Kích hoạt chức năng khôi phục tài khoản, đổi mật khẩu email liên kết và đăng xuất khỏi các thiết bị lạ.",
         "Bị bạo lực mạng" to "Chặn đối tượng thù ghét, chụp bằng chứng và liên hệ chuyên viên tâm lý học đường.",
-        "Lo ngại về sức khỏe tinh thần" to "Tạm ngắt kết nối mạng xã hội 24h và gọi tổng đài miễn phí 1800 96 96 12 để được lắng nghe."
+        "Lo ngại về sức khỏe tinh thần" to "Chia sẻ với người thân hoặc tư vấn học đường. Trẻ em cần hỗ trợ có thể gọi 111."
     )
 
     val emergencyContacts = listOf(
         Triple("Tổng đài Quốc gia 111", "Bảo vệ trẻ em trên không gian mạng", "111"),
-        Triple("An ninh mạng A05", "Tiếp nhận tin báo tội phạm mạng", "0692348560"),
-        Triple("Tổng đài TrustCare", "Tư vấn tâm lý & an toàn số miễn phí", "1800969612")
+        Triple("Công an địa phương", "Báo trực tiếp tại công an xã hoặc phường", "")
     )
 
     LazyColumn(
@@ -167,7 +166,7 @@ fun TrustHelpScreen(
                             )
                         }
 
-                        Button(
+                        if (phone.isNotBlank()) Button(
                             onClick = {
                                 val intent = Intent(Intent.ACTION_DIAL).apply {
                                     data = Uri.parse("tel:$phone")

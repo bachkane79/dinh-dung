@@ -367,7 +367,7 @@ fun TrustCareScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         // Legal Protection Note
-                        Surface(
+                        if (careAdvice.legalWarning.isNotBlank()) Surface(
                             color = DeepBlueAccentSoft,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -401,7 +401,7 @@ fun TrustCareScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // Mental Support Note
-                        Surface(
+                        if (careAdvice.mentalSupportTip.isNotBlank()) Surface(
                             color = SafetyGreenSoft,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -469,13 +469,13 @@ fun TrustCareScreen(
 
                         Column {
                             Text(
-                                text = "Tư vấn tâm lý học đường",
+                                text = "Tổng đài Quốc gia Bảo vệ Trẻ em",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Hotline: 1800 96 96 12 (Miễn phí 24/7)",
+                                text = "111 • Hỗ trợ trẻ em 24/7",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -485,7 +485,7 @@ fun TrustCareScreen(
                     Button(
                         onClick = {
                             val intent = Intent(Intent.ACTION_DIAL).apply {
-                                data = Uri.parse("tel:1800969612")
+                                data = Uri.parse("tel:111")
                             }
                             context.startActivity(intent)
                         },

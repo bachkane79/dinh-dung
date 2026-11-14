@@ -4,43 +4,36 @@ import com.example.data.TrustNetRepository
 import com.example.model.QueryType
 import com.example.model.RiskLevel
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
-class TrustNetRepositoryTest {
 
+class TrustNetRepositoryTest {
     private val repository = TrustNetRepository()
 
     @Test
-    fun testInitialScanHistoryNotEmpty() {
-        val history = repository.scanHistory.value
-        assertTrue(history.isNotEmpty())
-        assertEquals(92, history.first().riskScore)
+    fun startsWithGuestAndNoSampleHistory() {
+        assertFalse(repository.currentUser.value.isLoggedIn)
+        assertTrue(repository.scanHistory.value.isEmpty())
     }
 
     @Test
-    fun testPhishingScanDetectsHighRisk() = runTest {
-        val result = repository.analyzeTarget("http://vneid-xacthuc-taikhoan.vn/login?otp=true", QueryType.URL)
-        assertEquals(RiskLevel.HIGH_RISK, result.riskLevel)
-        assertTrue(result.riskScore >= 80)
-        assertTrue(result.redFlags.isNotEmpty())
+    fun unverifiedDomainIsNeverCertifiedSafe() = runTest {
+        val result = repository.analyzeTarget("https://example.invalid", QueryType.URL)
+        assertNotEquals(RiskLevel.SAFE, result.riskLevel)
+        assertFalse(result.isDomainValid)
     }
 
     @Test
-    fun testLegitimateScanDetectsSafe() = runTest {
-        val result = repository.analyzeTarget("https://trustnet.edu.vn", QueryType.URL)
-        assertEquals(RiskLevel.SAFE, result.riskLevel)
-        assertTrue(result.riskScore < 30)
+    fun loginPathAloneDoesNotProvePhishing() = runTest {
+        // Syntax analysis without a Gemini key.
+        org.junit.Assume.assumeTrue(repository.aiService.getEffectiveApiKey().isBlank())
+        val result = repository.analyzeTarget("https://example.com/login", QueryType.URL)
+        assertEquals(RiskLevel.UNKNOWN, result.riskLevel)
     }
 
     @Test
-    fun testDeepfakeAnalysisReturnsAccurateScores() = runTest {
-        val authenticResult = repository.analyzeDeepfake("fuji.jpg", isSimulatedFake = false)
-        assertTrue(authenticResult.isReal)
-        assertTrue(authenticResult.confidence >= 90)
-
-        val fakeResult = repository.analyzeDeepfake("deepfake.mp4", isSimulatedFake = true)
-        assertTrue(!fakeResult.isReal)
-        assertTrue(fakeResult.generativePatterns > 70)
+    fun unauthenticatedWritesFail() = runTest {
+        assertFalse(repository.submitIncidentReport("example.invalid", "test"))
+        assertFalse(repository.submitVolunteerRegistration("Test", "Test", ""))
     }
 }

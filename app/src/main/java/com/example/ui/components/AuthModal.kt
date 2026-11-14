@@ -31,7 +31,6 @@ fun AuthModal(
     onDismiss: () -> Unit,
     onLogin: (email: String, pass: String) -> Unit,
     onRegister: (name: String, email: String, pass: String) -> Unit,
-    onGoogleLogin: () -> Unit
 ) {
     var isSignUpTab by remember { mutableStateOf(false) }
 
@@ -236,15 +235,18 @@ fun AuthModal(
                             return@Button
                         }
                         if (isSignUpTab) {
+                            if (passInput.length < 8) {
+                                errorMessage = "Mật khẩu phải có ít nhất 8 ký tự."
+                                return@Button
+                            }
                             if (nameInput.isBlank()) {
                                 errorMessage = "Vui lòng nhập tên của bạn."
                                 return@Button
                             }
-                            onRegister(nameInput.trim(), emailInput.trim(), passInput.trim())
+                            onRegister(nameInput.trim(), emailInput.trim(), passInput)
                         } else {
-                            onLogin(emailInput.trim(), passInput.trim())
+                            onLogin(emailInput.trim(), passInput)
                         }
-                        onDismiss()
                     },
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -263,27 +265,6 @@ fun AuthModal(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Continue with Google Button
-                OutlinedButton(
-                    onClick = {
-                        onGoogleLogin()
-                        onDismiss()
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(46.dp)
-                        .testTag("auth_google_button")
-                ) {
-                    Text(
-                        text = "Tiếp tục với Google",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
             }
         }
     }

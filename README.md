@@ -1,22 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# TrustNet Android
 
-# Run and deploy your AI Studio app
+## Chạy API kết nối Neon
 
-This contains everything you need to run your app locally.
+Cần Node.js 22 và PostgreSQL trên Neon. Trong thư mục `server`, sao chép `.env.example` thành `.env` và đặt `NEON_CONNECTION_STRING`. Biến này chỉ dùng trên server.
 
-View your app in AI Studio: https://ai.studio/apps/d3de137f-ccb0-4b4d-95ec-4462987da928
+```powershell
+cd server
+npm ci
+node --env-file=.env index.mjs --migrate
+npm start
+```
 
-## Run Locally
+Mặc định API lắng nghe trên `127.0.0.1:8787`. Kiểm tra bằng `GET /health`. Migration thêm mật khẩu, phiên và chủ sở hữu lịch sử. Dữ liệu lịch sử cũ chưa có chủ sở hữu được giữ lại và không hiển thị trong tài khoản. Tài khoản cũ chưa có mật khẩu cần luồng đặt lại mật khẩu trước khi đăng nhập.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+## Chạy Android
 
+Mở thư mục gốc bằng Android Studio với Gradle 9.3.1 và SDK 36.1. Trình giả lập dùng `http://10.0.2.2:8787`. Với thiết bị qua USB, chạy `adb reverse tcp:8787 tcp:8787`, đặt `TRUSTNET_API_URL=http://127.0.0.1:8787` trong `.env` ở thư mục gốc rồi build lại. Bản phát hành cần URL HTTPS của API và thông tin ký release. Dùng `gradle testDebugUnitTest assembleDebug` để test và build.
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+Nhập khóa Gemini trong Cá nhân để bật phân tích trong phiên hiện tại. Khi thử nghiệm cục bộ có thể đặt `GEMINI_API_KEY` trong `.env` Android. Khóa cấu hình lúc build có thể đọc được từ APK, vì vậy hãy để trống khi phân phối. Ứng dụng ưu tiên Gemini 2.5 Flash-Lite, dùng 3.1 Flash-Lite khi khóa không có quyền dùng 2.5.
+
+TrustCheck phân tích dấu hiệu từ link, tin nhắn, số điện thoại và ảnh. TrustAI sàng lọc ảnh và video tối đa 10 MB. Hai chức năng này không xác thực chủ sở hữu tên miền hay nguồn gốc nội dung.

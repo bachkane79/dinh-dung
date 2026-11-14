@@ -20,3 +20,6 @@ debug.keystore
 build/
 *.apk
 *.aab
+
+node_modules/
+*.jks

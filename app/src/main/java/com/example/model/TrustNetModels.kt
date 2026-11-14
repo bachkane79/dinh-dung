@@ -26,7 +26,8 @@ enum class BottomTab {
 enum class RiskLevel {
     SAFE,
     MODERATE,
-    HIGH_RISK
+    HIGH_RISK,
+    UNKNOWN
 }
 
 enum class QueryType {
@@ -101,7 +102,7 @@ data class CareSituationItem(
     val subtitle: String,
     val adviceList: List<String>,
     val emergencyNote: String,
-    val hotline: String = "1800 96 96 12"
+    val hotline: String = "111"
 )
 
 // AI Situation Analysis for TrustCare Chatbot/Advisor
@@ -110,21 +111,16 @@ data class CareAiAdvice(
     val situationSummary: String,
     val actionSteps: List<String>,
     val legalWarning: String,
-    val recommendedHotline: String = "1800 96 96 12",
+    val recommendedHotline: String = "",
     val mentalSupportTip: String = ""
 )
 
 data class DeepfakeAnalysisResult(
     val fileName: String,
-    val isReal: Boolean,
-    val confidence: Int,
-    val lightingConsistency: Int,
-    val facialGeometry: Int,
-    val generativePatterns: Int,
+    val hasSuspiciousSigns: Boolean,
     val summaryNote: String,
     val detailedFindings: List<String>,
-    val aiProbability: Int = if (!isReal) 88 else 4,
-    val detectorSource: String = "Meta AI Detector / Gemini 2.0 Flash"
+    val detectorSource: String
 )
 
 data class QuizQuestion(

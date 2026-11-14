@@ -13,7 +13,7 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,9 +35,23 @@ fun VolunteerTeamScreen(
     activities: List<VolunteerActivity>,
     onJoinClick: () -> Unit,
     onReportClick: () -> Unit,
-    onActivityClick: (VolunteerActivity) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedActivity by remember { mutableStateOf<VolunteerActivity?>(null) }
+    selectedActivity?.let { activity ->
+        AlertDialog(
+            onDismissRequest = { selectedActivity = null },
+            title = { Text(activity.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(activity.date)
+                    Text(activity.location)
+                    Text(activity.description)
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedActivity = null }) { Text("Đóng") } }
+        )
+    }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -131,7 +145,7 @@ fun VolunteerTeamScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(2.dp, RoundedCornerShape(22.dp))
-                    .clickable { onActivityClick(activity) }
+                    .clickable { selectedActivity = activity }
                     .testTag("activity_${activity.id}"),
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)

@@ -1,0 +1,7 @@
+{
+  "name": "trustnet-server",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node --env-file=.env index.mjs" },
+  "dependencies": { "pg": "^8.16.3" }
+}

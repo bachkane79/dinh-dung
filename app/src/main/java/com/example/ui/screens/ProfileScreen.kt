@@ -59,7 +59,7 @@ fun ProfileScreen(
     var apiKeyInput by remember { mutableStateOf(currentApiKey) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
-    val formattedSyncTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(lastSyncTimestamp))
+    val formattedSyncTime = if (lastSyncTimestamp == 0L) "Chưa đồng bộ" else SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(lastSyncTimestamp))
 
     LazyColumn(
         modifier = modifier

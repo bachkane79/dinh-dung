@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.example.model.BottomTab
+import com.example.model.QueryType
 import com.example.model.Screen
 import com.example.ui.components.ArticleDetailDialog
 import com.example.ui.components.AuthModal
@@ -97,7 +98,6 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
     val selectedCareSituation by viewModel.selectedCareSituation.collectAsState()
     val isAnalyzingCare by viewModel.isAnalyzingCare.collectAsState()
     val activeCareAdvice by viewModel.activeCareAdvice.collectAsState()
-    val customAiDetectorUrl by viewModel.customAiDetectorUrl.collectAsState()
     val selectedArticle by viewModel.selectedArticle.collectAsState()
     val showQuickScanModal by viewModel.showQuickScanModal.collectAsState()
     val showVolunteerJoinDialog by viewModel.showVolunteerJoinDialog.collectAsState()
@@ -167,6 +167,7 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
                         scanResult = activeScanResult,
                         isScanning = isScanning,
                         onPerformScan = { query, type -> viewModel.performScan(query, type) },
+                        onScanImage = { media -> viewModel.performScan("", QueryType.IMAGE, media) },
                         onReportClick = { viewModel.setIncidentReportDialogVisible(true) }
                     )
 
@@ -184,9 +185,7 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
                     Screen.TRUST_AI -> TrustAIScreen(
                         analysisResult = activeDeepfakeResult,
                         isAnalyzing = isAnalyzingAi,
-                        customApiUrl = customAiDetectorUrl,
-                        onCustomApiUrlChange = { viewModel.setCustomAiDetectorUrl(it) },
-                        onAnalyze = { isSimulatedFake -> viewModel.performAiDetection(isSimulatedFake) }
+                        onAnalyze = viewModel::performAiDetection
                     )
 
                     Screen.TRUST_LAB -> TrustLabScreen(
@@ -210,7 +209,6 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
                         activities = viewModel.repository.volunteerActivities,
                         onJoinClick = { viewModel.setVolunteerJoinDialogVisible(true) },
                         onReportClick = { viewModel.setIncidentReportDialogVisible(true) },
-                        onActivityClick = { viewModel.showToast("Đã chọn hoạt động: ${it.title}") }
                     )
 
                     Screen.HISTORY -> HistoryScreen(
@@ -257,13 +255,12 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
                 )
             }
 
-            // User Authentication Modal (Sign In / Register / Google Auth)
+            // User Authentication Modal (Sign In / Register)
             if (showAuthModal) {
                 AuthModal(
                     onDismiss = { viewModel.setAuthModalVisible(false) },
                     onLogin = { email, pass -> viewModel.login(email, pass) },
                     onRegister = { name, email, pass -> viewModel.register(name, email, pass) },
-                    onGoogleLogin = { viewModel.loginWithGoogle() }
                 )
             }
 
@@ -295,8 +292,8 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
             if (showVolunteerJoinDialog) {
                 VolunteerJoinDialog(
                     onDismiss = { viewModel.setVolunteerJoinDialogVisible(false) },
-                    onSubmit = { name, school ->
-                        viewModel.submitVolunteerRegistration(name, school, "")
+                    onSubmit = { name, school, phone ->
+                        viewModel.submitVolunteerRegistration(name, school, phone)
                     }
                 )
             }

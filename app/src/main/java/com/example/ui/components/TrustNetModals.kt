@@ -264,7 +264,7 @@ fun CareAdviceDetailDialog(
                 ) {
                     Icon(imageVector = Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gọi chuyên gia tư vấn (${item.hotline})", fontWeight = FontWeight.Bold)
+                    Text("Gọi tổng đài bảo vệ trẻ em (${item.hotline})", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -358,7 +358,7 @@ fun ArticleDetailDialog(
 @Composable
 fun VolunteerJoinDialog(
     onDismiss: () -> Unit,
-    onSubmit: (String, String) -> Unit
+    onSubmit: (String, String, String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var school by remember { mutableStateOf("") }
@@ -418,7 +418,7 @@ fun VolunteerJoinDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
-                        onSubmit(name, school)
+                        onSubmit(name, school, phone)
                         onDismiss()
                     }
                 },

@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import com.example.data.MediaInput
 
 class TrustNetViewModel(
     val repository: TrustNetRepository = TrustNetRepository()
@@ -50,31 +52,14 @@ class TrustNetViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
-    private val _activeScanResult = MutableStateFlow<ScanResult?>(
-        repository.scanHistory.value.firstOrNull()
-    )
+    private val _activeScanResult = MutableStateFlow<ScanResult?>(null)
     val activeScanResult: StateFlow<ScanResult?> = _activeScanResult.asStateFlow()
 
     // TrustAI state
     private val _isAnalyzingAi = MutableStateFlow(false)
     val isAnalyzingAi: StateFlow<Boolean> = _isAnalyzingAi.asStateFlow()
 
-    private val _activeDeepfakeResult = MutableStateFlow<DeepfakeAnalysisResult?>(
-        DeepfakeAnalysisResult(
-            fileName = "sample_photo.jpg",
-            isReal = true,
-            confidence = 98,
-            lightingConsistency = 96,
-            facialGeometry = 99,
-            generativePatterns = 3,
-            summaryNote = "Ảnh thật. Không phát hiện dấu hiệu giả mạo hay can thiệp AI.",
-            detailedFindings = listOf(
-                "Không có dấu vết biến dạng chi tiết biên.",
-                "Độ sắc nét bề mặt tự nhiên và chân thực.",
-                "Tính đồng nhất của ánh sáng mặt trời tự nhiên."
-            )
-        )
-    )
+    private val _activeDeepfakeResult = MutableStateFlow<DeepfakeAnalysisResult?>(null)
     val activeDeepfakeResult: StateFlow<DeepfakeAnalysisResult?> = _activeDeepfakeResult.asStateFlow()
 
     // TrustLab Quiz state
@@ -98,9 +83,6 @@ class TrustNetViewModel(
     val activeCareAdvice: StateFlow<CareAiAdvice?> = _activeCareAdvice.asStateFlow()
 
     // TrustAI Custom Detector API URL
-    private val _customAiDetectorUrl = MutableStateFlow("")
-    val customAiDetectorUrl: StateFlow<String> = _customAiDetectorUrl.asStateFlow()
-
     // Dialog & Selection states
     private val _selectedCareSituation = MutableStateFlow<CareSituationItem?>(null)
     val selectedCareSituation: StateFlow<CareSituationItem?> = _selectedCareSituation.asStateFlow()
@@ -186,7 +168,11 @@ class TrustNetViewModel(
     fun login(email: String, pass: String) {
         viewModelScope.launch {
             val ok = repository.login(email, pass)
-            if (ok) showToast("Đăng nhập thành công! Chào mừng trở lại.")
+            if (ok) {
+                _showAuthModal.value = false
+                _activeScanResult.value = null
+                showToast("Đăng nhập thành công!")
+            }
             else showToast("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.")
         }
     }
@@ -194,19 +180,20 @@ class TrustNetViewModel(
     fun register(name: String, email: String, pass: String) {
         viewModelScope.launch {
             val ok = repository.register(name, email, pass)
-            if (ok) showToast("Đã tạo tài khoản và đồng bộ an toàn!")
-            else showToast("Đăng ký hoàn tất.")
+            if (ok) {
+                _showAuthModal.value = false
+                _activeScanResult.value = null
+                showToast("Đã tạo tài khoản.")
+            } else showToast("Đăng ký thất bại. Kiểm tra thông tin hoặc thử email khác.")
         }
     }
 
-    fun loginWithGoogle() {
-        repository.loginWithGoogle()
-        showToast("Đã liên kết tài khoản Google thành công!")
-    }
-
     fun logout() {
-        repository.logout()
-        showToast("Đã đăng xuất tài khoản an toàn.")
+        viewModelScope.launch {
+            repository.logout()
+            _activeScanResult.value = null
+            showToast("Đã đăng xuất.")
+        }
     }
 
     fun setThemeMode(mode: AppThemeMode) {
@@ -221,31 +208,46 @@ class TrustNetViewModel(
         }
     }
 
-    fun performScan(targetText: String, type: QueryType = QueryType.URL) {
-        if (targetText.isBlank()) return
+    fun performScan(targetText: String, type: QueryType = QueryType.URL, media: MediaInput? = null) {
+        if (_isScanning.value || (targetText.isBlank() && media == null)) return
         viewModelScope.launch {
             _isScanning.value = true
-            val result = repository.analyzeTarget(targetText, type)
-            _activeScanResult.value = result
-            _isScanning.value = false
-            navigateTo(Screen.TRUST_CHECK)
+            _activeScanResult.value = null
+            try {
+                val owner = repository.currentUser.value.id
+                val scan = repository.analyzeTarget(targetText, type, media)
+                if (repository.currentUser.value.id == owner) {
+                    _activeScanResult.value = scan
+                    navigateTo(Screen.TRUST_CHECK)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: IllegalArgumentException) {
+                showToast(error.message ?: "Không đọc được tệp.")
+            } catch (_: Exception) {
+                showToast("Không thể phân tích. Hãy kiểm tra kết nối và khóa Gemini.")
+            } finally {
+                _isScanning.value = false
+            }
         }
     }
 
-    fun setCustomAiDetectorUrl(url: String) {
-        _customAiDetectorUrl.value = url.trim()
-    }
-
-    fun performAiDetection(isSimulatedFake: Boolean = false) {
+    fun performAiDetection(media: MediaInput) {
+        if (_isAnalyzingAi.value) return
         viewModelScope.launch {
             _isAnalyzingAi.value = true
-            val result = repository.analyzeDeepfake(
-                if (isSimulatedFake) "deepfake_sample_video.mp4" else "sample_photo.jpg",
-                isSimulatedFake,
-                customApiUrl = _customAiDetectorUrl.value
-            )
-            _activeDeepfakeResult.value = result
-            _isAnalyzingAi.value = false
+            _activeDeepfakeResult.value = null
+            try {
+                _activeDeepfakeResult.value = repository.analyzeDeepfake(media)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: IllegalArgumentException) {
+                showToast(error.message ?: "Không đọc được tệp.")
+            } catch (_: Exception) {
+                showToast("Không thể phân tích tệp. Hãy kiểm tra kết nối và khóa Gemini.")
+            } finally {
+                _isAnalyzingAi.value = false
+            }
         }
     }
 
@@ -297,8 +299,8 @@ class TrustNetViewModel(
 
     fun triggerSync() {
         viewModelScope.launch {
-            repository.triggerManualSync()
-            showToast("Đã đồng bộ dữ liệu thời gian thực thành công!")
+            val synced = repository.triggerManualSync()
+            showToast(if (synced) "Đã đồng bộ dữ liệu." else "Không thể đồng bộ. Hãy kiểm tra kết nối.")
         }
     }
 
@@ -321,7 +323,7 @@ class TrustNetViewModel(
 
     fun setCustomApiKey(key: String) {
         repository.aiService.customApiKey = key.trim()
-        showToast(if (key.isBlank()) "Đã xóa API key tùy chỉnh" else "Đã lưu Gemini API Key thành công!")
+        showToast(if (key.isBlank()) "Đã xóa API key tùy chỉnh" else "Đã đặt khóa Gemini cho phiên này.")
     }
 
     fun submitIncidentReport(target: String, details: String) {
@@ -330,7 +332,7 @@ class TrustNetViewModel(
             if (success) {
                 showToast("Đã gửi phản ánh lên máy chủ Neon PostgreSQL an toàn!")
             } else {
-                showToast("Đã lưu phản ánh vào hệ thống cảnh báo TrustNet!")
+                showToast("Gửi phản ánh thất bại. Vui lòng đăng nhập và kiểm tra kết nối.")
             }
         }
     }
@@ -338,7 +340,7 @@ class TrustNetViewModel(
     fun submitVolunteerRegistration(name: String, school: String, phone: String) {
         viewModelScope.launch {
             val success = repository.submitVolunteerRegistration(name, school, phone)
-            showToast("Cảm ơn $name ($school)! Đã lưu đăng ký vào Neon DB.")
+            showToast(if (success) "Đã gửi đăng ký tình nguyện." else "Gửi đăng ký thất bại. Vui lòng đăng nhập và kiểm tra kết nối.")
         }
     }
 
@@ -351,7 +353,10 @@ class TrustNetViewModel(
     }
 
     fun clearHistory() {
-        repository.clearHistory()
-        showToast("Đã xóa toàn bộ lịch sử quét")
+        viewModelScope.launch {
+            val success = repository.clearHistory()
+            if (success) _activeScanResult.value = null
+            showToast(if (success) "Đã xóa lịch sử của bạn." else "Chưa xóa được lịch sử. Vui lòng thử lại.")
+        }
     }
 }

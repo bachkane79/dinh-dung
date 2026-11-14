@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.data.MediaInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,10 +35,24 @@ fun TrustCheckScreen(
     scanResult: ScanResult?,
     isScanning: Boolean,
     onPerformScan: (String, QueryType) -> Unit,
+    onScanImage: (MediaInput) -> Unit,
     onReportClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var queryInput by remember { mutableStateOf("https://vneid-xacthuc-taikhoan.vn/login.php?ref=otp") }
+    val context = LocalContext.current
+    val resolver = context.contentResolver
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            val photo = java.io.File(java.io.File(context.cacheDir, "captured").apply { mkdirs() }, "capture.jpg")
+            photo.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.files", photo)
+            onScanImage(MediaInput(resolver, uri))
+        }
+    }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) onScanImage(MediaInput(resolver, uri))
+    }
     var selectedType by remember { mutableStateOf(QueryType.URL) }
 
     LazyColumn(
@@ -125,6 +143,24 @@ fun TrustCheckScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { imagePicker.launch("image/*") }, enabled = !isScanning) {
+                                Text("Chọn ảnh")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        camera.launch(null)
+                                    } catch (_: android.content.ActivityNotFoundException) {
+                                        android.widget.Toast.makeText(context, "Thiết bị không có ứng dụng camera.", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = !isScanning
+                            ) { Text("Chụp ảnh") }
+                        }
+                        Text("Ảnh tối đa 10 MB và sẽ được gửi tới Gemini.",
+                            style = MaterialTheme.typography.bodySmall)
+
                         // Primary Scan Button
                         Button(
                             onClick = {
@@ -150,7 +186,7 @@ fun TrustCheckScreen(
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text("AI Đang Phân Tích Tên Miền...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Đang phân tích…", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Search,
@@ -183,7 +219,7 @@ fun TrustCheckScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Semi-circular Risk Gauge
-                        RiskGauge(
+                        if (scanResult.riskLevel in setOf(RiskLevel.MODERATE, RiskLevel.HIGH_RISK)) RiskGauge(
                             score = scanResult.riskScore,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -193,7 +229,7 @@ fun TrustCheckScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         val (statusText, statusBg, statusColor) = when (scanResult.riskLevel) {
-                            RiskLevel.SAFE -> Triple("MỨC ĐỘ AN TOÀN", Color(0xFFEAF9EE), SafetyGreen)
+                            RiskLevel.SAFE, RiskLevel.UNKNOWN -> Triple("CHƯA XÁC MINH", Color(0xFFFEF3C7), WarningAmber)
                             RiskLevel.MODERATE -> Triple("RỦI RO TRUNG BÌNH", Color(0xFFFEF3C7), WarningAmber)
                             RiskLevel.HIGH_RISK -> Triple("RỦI RO CAO / ĐỘC HẠI", Color(0xFFFEE2E2), DangerRed)
                         }
@@ -240,29 +276,7 @@ fun TrustCheckScreen(
                                         )
                                     }
 
-                                    Surface(
-                                        color = if (scanResult.isDomainValid) SafetyGreenSoft else Color(0xFFFEE2E2),
-                                        shape = RoundedCornerShape(8.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = if (scanResult.isDomainValid) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                                contentDescription = null,
-                                                tint = if (scanResult.isDomainValid) SafetyGreen else DangerRed,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = if (scanResult.isDomainValid) "Tên miền hợp lệ" else "Tên miền bất thường",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (scanResult.isDomainValid) SafetyGreen else DangerRed
-                                            )
-                                        }
-                                    }
+
                                 }
                             }
                         }

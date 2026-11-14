@@ -77,7 +77,7 @@ fun TrustPrivacyScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "Mức độ bảo vệ: Tối ưu",
+                        text = "Tự kiểm tra quyền riêng tư",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -86,7 +86,7 @@ fun TrustPrivacyScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Đã hoàn thành $secureCount/$totalCount tiêu chuẩn bảo mật",
+                        text = "Bạn đã đánh dấu $secureCount/$totalCount mục. App không kiểm tra cài đặt tài khoản.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
