@@ -1,0 +1,6 @@
+{
+  "name": "TrustNet",
+  "description": "Trợ lý an toàn số thông minh - Nhận diện nguy cơ, kiểm chứng thông tin, bảo vệ dữ liệu cá nhân và đồng bộ thời gian thực.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
