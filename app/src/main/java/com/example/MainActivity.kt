@@ -97,7 +97,8 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
 
     val selectedCareSituation by viewModel.selectedCareSituation.collectAsState()
     val isAnalyzingCare by viewModel.isAnalyzingCare.collectAsState()
-    val activeCareAdvice by viewModel.activeCareAdvice.collectAsState()
+    val careMessages by viewModel.careMessages.collectAsState()
+    val careError by viewModel.careError.collectAsState()
     val selectedArticle by viewModel.selectedArticle.collectAsState()
     val showQuickScanModal by viewModel.showQuickScanModal.collectAsState()
     val showVolunteerJoinDialog by viewModel.showVolunteerJoinDialog.collectAsState()
@@ -178,8 +179,11 @@ fun TrustNetApp(viewModel: TrustNetViewModel) {
 
                     Screen.TRUST_CARE -> TrustCareScreen(
                         isAnalyzing = isAnalyzingCare,
-                        careAdvice = activeCareAdvice,
-                        onAnalyzeSituation = { situation -> viewModel.analyzeCareSituation(situation) }
+                        messages = careMessages,
+                        error = careError,
+                        onSend = viewModel::sendCareMessage,
+                        onRetry = viewModel::retryCareReply,
+                        onReset = viewModel::resetCareChat
                     )
 
                     Screen.TRUST_AI -> TrustAIScreen(

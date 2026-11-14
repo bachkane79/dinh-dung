@@ -15,7 +15,8 @@ import kotlinx.coroutines.sync.withLock
 
 class TrustNetRepository(
     val neonClient: NeonDatabaseClient = NeonDatabaseClient(),
-    val aiService: GeminiAiService = GeminiAiService()
+    val aiService: GeminiAiService = GeminiAiService(),
+    completedPrivacyItems: Set<String> = emptySet()
 ) {
     private val scope = CoroutineScope(Dispatchers.Default)
 
@@ -40,39 +41,9 @@ class TrustNetRepository(
     private val _alerts = MutableStateFlow<List<SecurityAlert>>(emptyList())
     val alerts: StateFlow<List<SecurityAlert>> = _alerts.asStateFlow()
 
-    // Privacy checklist items
-    private val _privacyItems = MutableStateFlow<List<PrivacyAuditItem>>(
-        listOf(
-            PrivacyAuditItem(
-                id = "priv-1",
-                title = "Xác thực hai yếu tố (2FA)",
-                description = "Bảo vệ tài khoản bằng mã sinh trắc học hoặc ứng dụng Authenticator thay vì SMS.",
-                isSecure = true,
-                actionText = "Đang kích hoạt"
-            ),
-            PrivacyAuditItem(
-                id = "priv-2",
-                title = "Quyền riêng tư mạng xã hội",
-                description = "Ẩn danh sách bạn bè, số điện thoại, ngày sinh công khai trên Facebook & Zalo.",
-                isSecure = true,
-                actionText = "Đã tối ưu"
-            ),
-            PrivacyAuditItem(
-                id = "priv-3",
-                title = "Ứng dụng truy cập Micro & Camera ngầm",
-                description = "Kiểm tra và thu hồi quyền các ứng dụng lạ yêu cầu truy cập khi không mở ứng dụng.",
-                isSecure = false,
-                actionText = "Cần kiểm tra"
-            ),
-            PrivacyAuditItem(
-                id = "priv-4",
-                title = "Cảnh giác mật khẩu trùng lặp",
-                description = "Không dùng chung 1 mật khẩu cho cả email chính, mạng xã hội và ngân hàng.",
-                isSecure = true,
-                actionText = "An toàn"
-            )
-        )
-    )
+    private val _privacyItems = MutableStateFlow(privacyChecklist.map { item ->
+        item.copy(isSecure = item.id in completedPrivacyItems)
+    })
     val privacyItems: StateFlow<List<PrivacyAuditItem>> = _privacyItems.asStateFlow()
 
     // Contextual Help Guides for each screen ('?' button)
@@ -428,7 +399,7 @@ class TrustNetRepository(
         return result
     }
 
-    suspend fun getCareAdvice(situation: String): CareAiAdvice = aiService.getCareGuidance(situation)
+    suspend fun getCareReply(messages: List<CareMessage>): String = aiService.getCareReply(messages)
 
     suspend fun analyzeDeepfake(media: MediaInput): DeepfakeAnalysisResult = aiService.detectAiMedia(media)
 

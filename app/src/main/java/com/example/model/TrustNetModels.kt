@@ -93,7 +93,7 @@ data class PrivacyAuditItem(
     val title: String,
     val description: String,
     val isSecure: Boolean,
-    val actionText: String
+    val category: String
 )
 
 data class CareSituationItem(
@@ -105,19 +105,11 @@ data class CareSituationItem(
     val hotline: String = "111"
 )
 
-// AI Situation Analysis for TrustCare Chatbot/Advisor
-data class CareAiAdvice(
-    val urgencyLevel: String, // "CỰC KỲ KHẨN CẤP", "CẦN THẬN TRỌNG", "AN TOÀN / BÌNH TĨNH"
-    val situationSummary: String,
-    val actionSteps: List<String>,
-    val legalWarning: String,
-    val recommendedHotline: String = "",
-    val mentalSupportTip: String = ""
-)
+data class CareMessage(val fromUser: Boolean, val text: String)
 
 data class DeepfakeAnalysisResult(
     val fileName: String,
-    val hasSuspiciousSigns: Boolean,
+    val suspicionScore: Int,
     val summaryNote: String,
     val detailedFindings: List<String>,
     val detectorSource: String

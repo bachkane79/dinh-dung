@@ -74,9 +74,14 @@ fun TrustAIScreen(
                 Card {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            if (analysisResult.hasSuspiciousSigns) "Có dấu hiệu đáng ngờ" else "Chưa đủ bằng chứng để kết luận",
+                            "Điểm nghi vấn AI: ${analysisResult.suspicionScore}/100",
                             style = MaterialTheme.typography.titleMedium
                         )
+                        Text(when (analysisResult.suspicionScore) {
+                            in 0..39 -> "Ít dấu hiệu quan sát được"
+                            in 40..69 -> "Cần kiểm tra thêm"
+                            else -> "Có nhiều dấu hiệu đáng ngờ"
+                        })
                         Text(analysisResult.fileName)
                         Text(analysisResult.summaryNote)
                         analysisResult.detailedFindings.forEach { Text("• $it") }

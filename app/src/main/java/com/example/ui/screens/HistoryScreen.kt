@@ -47,7 +47,7 @@ fun HistoryScreen(
 
     val filteredList = when (selectedFilter) {
         "Rủi ro cao" -> scanHistory.filter { it.riskLevel == RiskLevel.HIGH_RISK }
-        "Chưa xác minh" -> scanHistory.filter { it.riskLevel in setOf(RiskLevel.UNKNOWN, RiskLevel.SAFE) }
+        "Chưa xác minh" -> scanHistory.filter { it.riskLevel == RiskLevel.UNKNOWN }
         else -> scanHistory
     }
 
@@ -186,8 +186,8 @@ fun HistoryScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (scan.riskLevel in setOf(RiskLevel.UNKNOWN, RiskLevel.SAFE)) "$formattedDate • Chưa xác minh"
-                                    else "$formattedDate • Điểm rủi ro: ${scan.riskScore}/100",
+                                text = if (scan.riskLevel == RiskLevel.UNKNOWN) "$formattedDate • Chưa xác minh"
+                                    else "$formattedDate • Điểm rủi ro: ${scan.riskScore}%",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

@@ -219,17 +219,21 @@ fun TrustCheckScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Semi-circular Risk Gauge
-                        if (scanResult.riskLevel in setOf(RiskLevel.MODERATE, RiskLevel.HIGH_RISK)) RiskGauge(
+                        if (scanResult.riskLevel != RiskLevel.UNKNOWN) RiskGauge(
                             score = scanResult.riskScore,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(130.dp)
                         )
 
+                        if (scanResult.riskLevel != RiskLevel.UNKNOWN) {
+                            Text("Mức nguy hiểm ước tính: ${scanResult.riskScore}%")
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
 
                         val (statusText, statusBg, statusColor) = when (scanResult.riskLevel) {
-                            RiskLevel.SAFE, RiskLevel.UNKNOWN -> Triple("CHƯA XÁC MINH", Color(0xFFFEF3C7), WarningAmber)
+                            RiskLevel.SAFE -> Triple("ÍT DẤU HIỆU RỦI RO", Color(0xFFEAF9EE), SafetyGreen)
+                            RiskLevel.UNKNOWN -> Triple("CHƯA ĐỦ DỮ LIỆU CHẤM ĐIỂM", Color(0xFFFEF3C7), WarningAmber)
                             RiskLevel.MODERATE -> Triple("RỦI RO TRUNG BÌNH", Color(0xFFFEF3C7), WarningAmber)
                             RiskLevel.HIGH_RISK -> Triple("RỦI RO CAO / ĐỘC HẠI", Color(0xFFFEE2E2), DangerRed)
                         }

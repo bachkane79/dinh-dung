@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.TrustNetRepository
 import com.example.model.*
@@ -9,12 +10,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import com.example.data.MediaInput
 
 class TrustNetViewModel(
-    val repository: TrustNetRepository = TrustNetRepository()
-) : ViewModel() {
+    application: Application
+) : AndroidViewModel(application) {
+    private val privacyPreferences = application.getSharedPreferences("trust_privacy", 0)
+    val repository = TrustNetRepository(
+        completedPrivacyItems = privacyPreferences.getStringSet("completed", emptySet()).orEmpty()
+    )
 
     // Navigation state
     private val _currentScreen = MutableStateFlow(Screen.HOME)
@@ -79,8 +85,12 @@ class TrustNetViewModel(
     private val _isAnalyzingCare = MutableStateFlow(false)
     val isAnalyzingCare: StateFlow<Boolean> = _isAnalyzingCare.asStateFlow()
 
-    private val _activeCareAdvice = MutableStateFlow<CareAiAdvice?>(null)
-    val activeCareAdvice: StateFlow<CareAiAdvice?> = _activeCareAdvice.asStateFlow()
+    private val _careMessages = MutableStateFlow<List<CareMessage>>(emptyList())
+    val careMessages = _careMessages.asStateFlow()
+    private val _careError = MutableStateFlow<String?>(null)
+    val careError = _careError.asStateFlow()
+    private var careRequest: Job? = null
+    private var careRevision = 0
 
     // TrustAI Custom Detector API URL
     // Dialog & Selection states
@@ -190,6 +200,7 @@ class TrustNetViewModel(
 
     fun logout() {
         viewModelScope.launch {
+            resetCareChat()
             repository.logout()
             _activeScanResult.value = null
             showToast("Đã đăng xuất.")
@@ -251,14 +262,44 @@ class TrustNetViewModel(
         }
     }
 
-    fun analyzeCareSituation(situation: String) {
-        if (situation.isBlank()) return
-        viewModelScope.launch {
-            _isAnalyzingCare.value = true
-            val advice = repository.getCareAdvice(situation)
-            _activeCareAdvice.value = advice
-            _isAnalyzingCare.value = false
+    fun sendCareMessage(text: String) {
+        if (text.isBlank() || _isAnalyzingCare.value) return
+        val messages = _careMessages.value
+        // Update the pending message if the preceding request failed.
+        _careMessages.value = if (messages.lastOrNull()?.fromUser == true) {
+            messages.dropLast(1) + CareMessage(true, messages.last().text + "\n\n" + text)
+        } else messages + CareMessage(true, text)
+        retryCareReply()
+    }
+
+    fun retryCareReply() {
+        if (_isAnalyzingCare.value || _careMessages.value.lastOrNull()?.fromUser != true) return
+        _isAnalyzingCare.value = true
+        _careError.value = null
+        val conversation = _careMessages.value
+        val revision = ++careRevision
+        careRequest = viewModelScope.launch {
+            try {
+                val reply = repository.getCareReply(conversation)
+                _careMessages.value = conversation + CareMessage(false, reply)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: IllegalArgumentException) {
+                _careError.value = error.message ?: "Kiểm tra khóa Gemini trong mục Cá nhân."
+            } catch (_: Exception) {
+                _careError.value = "Chưa nhận được phản hồi. Kiểm tra kết nối hoặc khóa Gemini và thử lại."
+            } finally {
+                if (revision == careRevision) _isAnalyzingCare.value = false
+            }
         }
+    }
+
+    fun resetCareChat() {
+        careRevision++
+        careRequest?.cancel()
+        _careMessages.value = emptyList()
+        _careError.value = null
+        _isAnalyzingCare.value = false
     }
 
     fun answerQuiz(optionIndex: Int) {
@@ -295,6 +336,8 @@ class TrustNetViewModel(
 
     fun togglePrivacyItem(id: String) {
         repository.togglePrivacyAuditItem(id)
+        val completed = privacyItems.value.filter { it.isSecure }.map { it.id }.toSet()
+        privacyPreferences.edit().putStringSet("completed", completed).apply()
     }
 
     fun triggerSync() {
