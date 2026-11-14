@@ -23,7 +23,7 @@ class GeminiAiService {
         private const val MAX_MEDIA_BYTES = 10 * 1024 * 1024
     }
 
-    private val client = OkHttpClient.Builder().callTimeout(90, TimeUnit.SECONDS).build()
+    private val client = OkHttpClient.Builder().readTimeout(75, TimeUnit.SECONDS).callTimeout(90, TimeUnit.SECONDS).build()
     @Volatile var customApiKey: String = ""
 
     fun getEffectiveApiKey(): String = customApiKey.trim().ifBlank {
@@ -172,7 +172,7 @@ class GeminiAiService {
                 .header("x-goog-api-key", key)
                 .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
             client.newCall(request).execute().use { response ->
-                if (model == LEGACY_MODEL && response.code in setOf(403, 404)) return@use
+                if (model == LEGACY_MODEL && response.code in setOf(403, 404, 429)) return@use
                 check(response.isSuccessful) { "Gemini chưa thể phân tích (HTTP ${response.code})." }
                 val content = JSONObject(response.body?.string().orEmpty()).getJSONArray("candidates")
                     .getJSONObject(0).getJSONObject("content").getJSONArray("parts")
