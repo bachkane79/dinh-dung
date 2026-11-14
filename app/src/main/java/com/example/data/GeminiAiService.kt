@@ -43,7 +43,8 @@ class GeminiAiService {
                 Dữ liệu: $query
             """.trimIndent()
             val result = try {
-                if (getEffectiveApiKey().isBlank() && attachment == null) null else generate(prompt, attachment).second
+                if (getEffectiveApiKey().isBlank() && attachment == null) null else generate(prompt, attachment, properties = JSONObject()
+                    .put("riskScore", scoreField()).put("redFlags", stringList()).put("recommendations", stringList())).second
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -103,7 +104,7 @@ class GeminiAiService {
             Nếu có nguy hiểm ngay, khuyên tìm người lớn đáng tin cậy và liên hệ dịch vụ khẩn cấp tại địa phương.
             Trả JSON chỉ có khóa reply chứa lời nhắn. Dùng đoạn văn ngắn hoặc danh sách gạch đầu dòng.
         """.trimIndent()
-        generate(instruction, conversation = context).second.getString("reply").trim()
+        generate(instruction, conversation = context, properties = JSONObject().put("reply", stringField())).second.getString("reply").trim()
             .also { check(it.isNotBlank()) }
     }
 
@@ -114,7 +115,9 @@ class GeminiAiService {
             watermark hoặc metadata. Việc không thấy dấu hiệu không chứng minh tệp là thật.
             Trả JSON tiếng Việt: suspicionScore (số nguyên 0–100, dựa trên dấu hiệu quan sát được; null nếu không đọc được tệp),
             summary, findings (danh sách chuỗi). 0–39: ít dấu hiệu; 40–69: cần kiểm tra thêm; 70–100: nhiều dấu hiệu.
-            """.trimIndent(), media
+            """.trimIndent(), media,
+            properties = JSONObject().put("suspicionScore", scoreField())
+                .put("summary", stringField()).put("findings", stringList())
         )
         DeepfakeAnalysisResult(
             fileName = media.fileName(),
@@ -125,7 +128,12 @@ class GeminiAiService {
         )
     }
 
-    private fun generate(prompt: String, media: MediaInput? = null, conversation: JSONArray? = null): Pair<String, JSONObject> {
+    private fun generate(
+        prompt: String,
+        media: MediaInput? = null,
+        conversation: JSONArray? = null,
+        properties: JSONObject
+    ): Pair<String, JSONObject> {
         val key = getEffectiveApiKey()
         require(key.isNotBlank()) { "Nhập khóa Gemini API trong mục Cá nhân." }
         val parts = JSONArray().put(JSONObject().put("text", prompt))
@@ -148,6 +156,8 @@ class GeminiAiService {
             parts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", mime)
                 .put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))))
         }
+        val schema = JSONObject().put("type", "OBJECT").put("properties", properties)
+            .put("required", JSONArray(properties.keys().asSequence().toList()))
         for (model in listOf(LEGACY_MODEL, DEFAULT_MODEL)) {
             val thinking = if (model == LEGACY_MODEL) JSONObject().put("thinkingBudget", 0)
                 else JSONObject().put("thinkingLevel", "minimal")
@@ -155,6 +165,7 @@ class GeminiAiService {
                 .put("contents", conversation ?: JSONArray().put(JSONObject().put("parts", parts)))
                 .apply { if (conversation != null) put("systemInstruction", JSONObject().put("parts", parts)) }
                 .put("generationConfig", JSONObject().put("responseMimeType", "application/json")
+                    .put("responseSchema", schema)
                     .put("maxOutputTokens", 1000).put("thinkingConfig", thinking))
             val request = Request.Builder()
                 .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
@@ -176,6 +187,13 @@ class GeminiAiService {
     private fun extractHost(target: String): String = runCatching {
         URI(if (target.contains("://")) target else "https://$target").host.orEmpty().lowercase()
     }.getOrDefault("")
+
+    private fun stringField() = JSONObject().put("type", "STRING")
+
+    private fun stringList() = JSONObject().put("type", "ARRAY").put("items", stringField())
+
+    private fun scoreField() = JSONObject().put("type", "INTEGER").put("nullable", true)
+        .put("minimum", 0).put("maximum", 100)
 
     private fun JSONObject.score(name: String): Int? = (opt(name) as? Number)?.toDouble()
         ?.takeIf { it in 0.0..100.0 && it % 1.0 == 0.0 }?.toInt()
